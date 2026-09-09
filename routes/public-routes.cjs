@@ -273,7 +273,7 @@ const registerPublicRoutes = (app, deps) => {
           Payment.countDocuments({ status: "paid", verified: true }),
           Rating.aggregate([{ $group: { _id: null, avgScore: { $avg: "$score" } } }]),
           Expert.find({ status: "approved" })
-            .select("name field experience email")
+            .select("name field experience email avatar")
             .sort({ experience: -1, createdAt: -1 })
             .lean(),
           Payment.find({ status: "paid", verified: true })
@@ -328,6 +328,7 @@ const registerPublicRoutes = (app, deps) => {
                   : "Verified expert",
             color: palette[index % palette.length],
             initial: initials(expert.name),
+            avatar: expert.avatar || "",
             score: ratingInfo.avg,
           };
         })

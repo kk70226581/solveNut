@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 const homeData = {
   stats: { approvedExperts: 2, sessionsCompleted: 18, clientSatisfaction: 94 },
   experts: [
-    { name: 'Jordan Lee', domain: 'Career strategy', exp: '8+ yrs', sessions: 24, tag: 'Verified expert', color: '#22d3ee', initial: 'JL' },
+    { name: 'Jordan Lee', domain: 'Career strategy', exp: '8+ yrs', sessions: 24, tag: 'Verified expert', color: '#22d3ee', initial: 'JL', avatar: 'https://images.unsplash.com/demo-jordan' },
     { name: 'Maya Chen', domain: 'Business planning', exp: '11+ yrs', sessions: 31, tag: 'Top rated', color: '#34d399', initial: 'MC' },
   ],
 };
@@ -24,6 +24,7 @@ test('home page presents live data, navigation, and help at desktop width', asyn
   await expect(page.getByRole('heading', { name: /Real-world expertise/ })).toBeVisible();
   await expect(page.locator('.hp-stat-value').first()).toHaveText('2+');
   await expect(page.locator('.hp-expert-card')).toHaveCount(2);
+  await expect(page.locator('.hp-expert-avatar img')).toHaveCount(1);
   await expect(page.getByText('2,400+ professionals')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Experts', exact: true })).toBeVisible();
 

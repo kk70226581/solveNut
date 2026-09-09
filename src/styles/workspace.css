@@ -239,6 +239,8 @@ body:has(.client-chat-page) .floating-assistant-container { display: none; }
 .hp .hp-experts-empty strong { display: block; color: var(--c-text); font-size: 15px; }
 .hp .hp-experts-empty p { margin: 5px 0 0; color: var(--c-muted); font-size: 13px; line-height: 1.5; }
 .hp .hp-experts-empty .hp-btn { margin-left: auto; flex: 0 0 auto; }
+.hp .hp-expert-avatar { overflow: hidden; }
+.hp .hp-expert-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .hp .hp-testimonial-quote { font-style: normal; }
 .hp .hp-testimonial-stars { font-variant-numeric: tabular-nums; }
 .hp .hp-floating-help-btn {

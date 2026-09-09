@@ -24,10 +24,11 @@ The visual direction is a consistent slate workspace with mint actions, quieter 
 - Missing cameras can fall back to audio. Failed setup releases media. Cancelling a call while camera permission is pending stops the subsequently returned stream.
 - Floating calls use border-box measurements, clamp to the viewport, and release their backdrop so the workspace remains usable. Fullscreen has an in-page fallback. Local preview size stays bounded; landscape controls fit on screen.
 - The home page includes a direct Experts navigation action, a responsive mobile drawer, a consistent help launcher, and a fallback message when public expert data cannot be loaded. The help bot uses the shared API base so local and deployed builds reach the same backend.
+- The demo marketplace seed now includes 22 detailed profiles across six domains. The seed command upserts all profiles with `status: "approved"`; ten new profiles include hosted portrait images, summaries, locations, languages, skills, prices, and availability so the public directory has a complete first-run roster.
 
 ## Verification
 
-Run `npm ci`, `npm run lint`, `npm test`, and `npm run build`.
+Run `npm ci`, `npm run lint`, `npm test`, and `npm run build`. To populate a development database with the approved marketplace roster, run `npm run seed:experts` with `MONGO_URI` configured.
 
 For browser checks, run `npx playwright install chromium` once, then `npm run test:ui`. An installed Chromium browser can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE`.
 

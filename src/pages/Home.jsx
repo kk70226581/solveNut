@@ -40,6 +40,12 @@ function useInView(threshold = 0.15) {
   return [ref, inView];
 }
 
+function resolveAvatarUrl(value) {
+  if (!value) return '';
+  if (value.startsWith('data:') || value.startsWith('blob:') || value.startsWith('http')) return value;
+  return `${API}/${value.replace(/^\/+/, '')}`;
+}
+
 /* Product guidance keeps this section useful before the platform has verified customer stories. */
 const SESSION_OUTCOMES = [
   { quote: 'A clear decision statement, with the assumptions that need testing before you commit.', name: 'Before the session', role: 'Frame the question', avatar: '01', color: '#22d3ee' },
@@ -95,6 +101,7 @@ const Home = () => {
       tag: Number(e.avgRating || e.rating || 0) >= 4.7 ? 'Top rated' : 'Verified expert',
       color: palette[i % palette.length],
       initial: initials(e.name),
+      avatar: e.avatar || '',
     }));
     const approvedExperts = safeExperts.length;
     const sessionsCompleted = safeExperts.reduce((sum, e) => sum + Number(e.ratingsCount || 0), 0);
@@ -512,9 +519,11 @@ const Home = () => {
             </div>
 
             <div className="hp-experts-grid">
-              {expertsShowcase.length ? expertsShowcase.map(({ name, domain, exp, sessions, tag, color, initial }) => (
+              {expertsShowcase.length ? expertsShowcase.map(({ name, domain, exp, sessions, tag, color, initial, avatar }) => (
                 <article key={name} className="hp-expert-card" style={{ '--exp-color': color }}>
-                  <div className="hp-expert-avatar" style={{ background: color }}>{initial}</div>
+                  <div className="hp-expert-avatar" style={{ background: color }}>
+                    {resolveAvatarUrl(avatar) ? <img src={resolveAvatarUrl(avatar)} alt={`${name} profile`} loading="lazy" /> : initial}
+                  </div>
                   <div className="hp-expert-tag">{tag}</div>
                   <h3 className="hp-expert-name">{name}</h3>
                   <div className="hp-expert-domain">{domain}</div>
