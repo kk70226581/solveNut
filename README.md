@@ -13,6 +13,11 @@ Full-stack app with React (Vite) frontend and Express backend.
 
 See [UI review and verification](docs/UI_REVIEW.md) for the dashboard refresh, platform comparison, and browser test setup.
 
+## Project documentation
+
+- [Project deep dive](docs/PROJECT_DEEP_DIVE.md) - architecture, data model, security, realtime calls, AI, payments, deployment, and operational boundaries.
+- [100 SDE interview questions and answers](docs/SDE_INTERVIEW_100_QA.md) - project-specific questions covering frontend, backend, MongoDB, security, WebRTC, payments, AI, testing, and system design.
+
 ## Security Additions
 
 - Route protection on frontend via `ProtectedRoute`:
