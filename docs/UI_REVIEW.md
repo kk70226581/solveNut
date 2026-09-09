@@ -24,6 +24,7 @@ The visual direction is a consistent slate workspace with mint actions, quieter 
 - Missing cameras can fall back to audio. Failed setup releases media. Cancelling a call while camera permission is pending stops the subsequently returned stream.
 - Floating calls use border-box measurements, clamp to the viewport, and release their backdrop so the workspace remains usable. Fullscreen has an in-page fallback. Local preview size stays bounded; landscape controls fit on screen.
 - The home page includes a direct Experts navigation action, a responsive mobile drawer, a consistent help launcher, and a fallback message when public expert data cannot be loaded. The help bot uses the shared API base so local and deployed builds reach the same backend.
+- AI Expert now provides domain starter prompts, saved-consultation loading, a new-consultation reset, response copy and retry actions, confidence and feedback controls, character guidance, safer markdown rendering, and a clearer escalation path to a human expert.
 - The demo marketplace seed now includes 22 detailed profiles across six domains. The seed command upserts all profiles with `status: "approved"`; ten new profiles include hosted portrait images, summaries, locations, languages, skills, prices, and availability so the public directory has a complete first-run roster.
 
 ## Verification
@@ -32,7 +33,7 @@ Run `npm ci`, `npm run lint`, `npm test`, and `npm run build`. To populate a dev
 
 For browser checks, run `npx playwright install chromium` once, then `npm run test:ui`. An installed Chromium browser can be selected with `PLAYWRIGHT_CHROMIUM_EXECUTABLE`.
 
-The browser suite covers the home page at desktop and mobile widths, live metric rendering, expert navigation, help chat, and the mobile drawer, plus client and expert chat at 390, 768, and 1440 pixels; profile saving and decision persistence; error/retry states; offline drafts; real WebRTC connections between two browser pages; remote audio and video playback; mute, floating, dock, and fullscreen controls; portrait/landscape call layouts; and permission cancellation cleanup. Screen-share track switching uses a synthetic display stream. Dashboard API responses and signaling transport are fixtures; backend signaling authorization is tested separately.
+The browser suite covers the home page at desktop and mobile widths, live metric rendering, expert navigation, help chat, and the mobile drawer; AI Expert consultation start, streamed responses, copy, feedback, reset, and mobile layout; plus client and expert chat at 390, 768, and 1440 pixels; profile saving and decision persistence; error/retry states; offline drafts; real WebRTC connections between two browser pages; remote audio and video playback; mute, floating, dock, and fullscreen controls; portrait/landscape call layouts; and permission cancellation cleanup. Screen-share track switching uses a synthetic display stream. Dashboard API responses and signaling transport are fixtures; backend signaling authorization is tested separately.
 
 Screenshots and failure traces are written to `test-results/` and excluded from Git.
 

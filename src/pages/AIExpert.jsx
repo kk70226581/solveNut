@@ -1,6 +1,6 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Bot, BriefcaseBusiness, CheckCircle2, GraduationCap, HeartPulse, LineChart, Loader2, Send, Sparkles, TerminalSquare, TrendingUp, UserRoundCheck } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Bot, BriefcaseBusiness, Check, CheckCircle2, Copy, GraduationCap, HeartPulse, LineChart, Loader2, MessageSquarePlus, RotateCcw, Send, Sparkles, TerminalSquare, TrendingUp, UserRoundCheck } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../styles/AIExpert.css';
 
 import { API } from '../utils/api';
@@ -15,6 +15,17 @@ const DOMAINS = [
   { id: 'medical guidance', label: 'Medical Guidance', icon: HeartPulse },
   { id: 'personal growth', label: 'Personal Growth', icon: CheckCircle2 },
 ];
+
+const STARTER_PROMPTS = {
+  career: ['Compare two job offers', 'Prepare for a difficult manager conversation', 'Plan my next 90 days'],
+  business: ['Pressure-test a new business idea', 'Choose what to validate first', 'Make a focused growth plan'],
+  finance: ['Map the trade-offs in a money decision', 'Build a simple scenario plan', 'Clarify my financial priorities'],
+  programming: ['Review a system design decision', 'Plan a technical migration', 'Debug a recurring production issue'],
+  devops: ['Prepare for a production incident', 'Reduce deployment friction', 'Choose an observability baseline'],
+  academics: ['Build a realistic study plan', 'Frame a research question', 'Prepare a graduate application'],
+  'medical guidance': ['Prepare questions for a clinician', 'Organize symptoms and timeline', 'Understand care-navigation options'],
+  'personal growth': ['Set a meaningful next milestone', 'Prepare for a hard conversation', 'Turn a goal into weekly actions'],
+};
 
 const FEEDBACK = [
   { id: 'helped', label: 'Yes, this helped' },
@@ -40,66 +51,54 @@ function getAuthHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function renderInlineMarkdown(text) {
+  const tokens = String(text || '').split(/(\*\*.*?\*\*|__.*?__|\*.*?\*|_.*?_|`.*?`)/g);
+  return tokens.map((token, index) => {
+    if (!token) return null;
+    if ((token.startsWith('**') && token.endsWith('**')) || (token.startsWith('__') && token.endsWith('__'))) {
+      return <strong key={`${token}-${index}`}>{token.slice(2, -2)}</strong>;
+    }
+    if ((token.startsWith('*') && token.endsWith('*')) || (token.startsWith('_') && token.endsWith('_'))) {
+      return <em key={`${token}-${index}`}>{token.slice(1, -1)}</em>;
+    }
+    if (token.startsWith('`') && token.endsWith('`')) {
+      return <code key={`${token}-${index}`}>{token.slice(1, -1)}</code>;
+    }
+    return <React.Fragment key={`${token}-${index}`}>{token}</React.Fragment>;
+  });
+}
+
 function formatAssistantText(text) {
   return String(text || '')
     .split('\n')
     .map((line, index) => {
-      // Bold text
-      let processedLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-      processedLine = processedLine.replace(/__(.*?)__/g, '<strong>$1</strong>');
-
-      // Italic text
-      processedLine = processedLine.replace(/\*(.*?)\*/g, '<em>$1</em>');
-      processedLine = processedLine.replace(/_(.*?)_/g, '<em>$1</em>');
-
-      // List items - add indentation and styling
-      if (line.trim().match(/^[\d]+\.|^[-*]/)) {
-        return (
-          <div key={`${line}-${index}`} style={{ marginLeft: '1.5rem', marginBottom: '0.25rem' }}>
-            <span dangerouslySetInnerHTML={{ __html: processedLine }} />
-          </div>
-        );
-      }
-
-      // Headers
       if (line.startsWith('###')) {
-        return (
-          <h4 key={`${line}-${index}`} style={{ fontWeight: '600', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
-            {line.replace(/^#+\s/, '')}
-          </h4>
-        );
+        return <h4 className="ai-markdown-heading" key={`${line}-${index}`}>{renderInlineMarkdown(line.replace(/^#+\s/, ''))}</h4>;
       }
       if (line.startsWith('##')) {
-        return (
-          <h3 key={`${line}-${index}`} style={{ fontWeight: '600', marginTop: '0.75rem', marginBottom: '0.5rem' }}>
-            {line.replace(/^#+\s/, '')}
-          </h3>
-        );
+        return <h3 className="ai-markdown-heading" key={`${line}-${index}`}>{renderInlineMarkdown(line.replace(/^#+\s/, ''))}</h3>;
       }
       if (line.startsWith('#')) {
-        return (
-          <h2 key={`${line}-${index}`} style={{ fontWeight: '700', marginTop: '1rem', marginBottom: '0.75rem' }}>
-            {line.replace(/^#+\s/, '')}
-          </h2>
-        );
+        return <h2 className="ai-markdown-heading" key={`${line}-${index}`}>{renderInlineMarkdown(line.replace(/^#+\s/, ''))}</h2>;
       }
 
-      // Regular line with formatting
-      if (line.trim()) {
+      if (line.trim().match(/^(\d+\.|[-*])\s/)) {
         return (
-          <div key={`${line}-${index}`} style={{ marginBottom: '0.25rem' }}>
-            <span dangerouslySetInnerHTML={{ __html: processedLine }} />
+          <div className="ai-markdown-list-item" key={`${line}-${index}`}>
+            <span>{renderInlineMarkdown(line.replace(/^(\d+\.|[-*])\s/, ''))}</span>
           </div>
         );
       }
-
-      // Empty line - add spacing
-      return <div key={`${line}-${index}`} style={{ marginBottom: '0.5rem' }} />;
+      if (line.trim()) {
+        return <div className="ai-markdown-line" key={`${line}-${index}`}>{renderInlineMarkdown(line)}</div>;
+      }
+      return <div className="ai-markdown-spacer" key={`${line}-${index}`} />;
     });
 }
 
 const AIExpert = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const messagesEndRef = useRef(null);
   const [selectedDomain, setSelectedDomain] = useState('career');
   const [problem, setProblem] = useState('');
@@ -110,6 +109,9 @@ const AIExpert = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const [escalation, setEscalation] = useState(null);
   const [error, setError] = useState('');
+  const [copiedMessageId, setCopiedMessageId] = useState('');
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+  const requestedConversationId = searchParams.get('conversationId');
 
   const selectedDomainInfo = useMemo(
     () => DOMAINS.find((domain) => domain.id === selectedDomain) || DOMAINS[0],
@@ -127,6 +129,44 @@ const AIExpert = () => {
     }
     return true;
   }, [navigate]);
+
+  useEffect(() => {
+    if (!requestedConversationId || conversationId || messages.length) return undefined;
+    if (!requireLogin()) return undefined;
+    let mounted = true;
+    setIsLoadingConversation(true);
+    fetch(`${API}/api/ai/conversation/${encodeURIComponent(requestedConversationId)}`, {
+      headers: getAuthHeaders(),
+    })
+      .then(async (response) => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Unable to load this consultation.');
+        return data;
+      })
+      .then((data) => {
+        if (!mounted) return;
+        const loadedMessages = Array.isArray(data.messages) ? data.messages.map((message) => ({
+          id: String(message._id || `${message.role}-${message.createdAt || Date.now()}`),
+          role: message.role,
+          content: message.content || '',
+          isStreaming: false,
+          confidenceScore: message.confidenceScore,
+          recommendEscalation: Boolean(message.recommendEscalation),
+          escalationReason: message.escalationReason || '',
+          feedbackGiven: false,
+        })) : [];
+        setConversationId(String(data.conversation?._id || requestedConversationId));
+        setSelectedDomain(data.conversation?.domain || 'career');
+        setMessages(loadedMessages);
+        if (data.conversation?.escalationStatus === 'suggested') {
+          setEscalation({ reason: data.conversation.escalationReason || 'low_confidence', confidenceScore: data.conversation.confidenceScore });
+        }
+        scrollToBottom();
+      })
+      .catch((loadError) => { if (mounted) setError(loadError.message || 'Unable to load this consultation.'); })
+      .finally(() => { if (mounted) setIsLoadingConversation(false); });
+    return () => { mounted = false; };
+  }, [conversationId, messages.length, requireLogin, requestedConversationId, scrollToBottom]);
 
   const appendMessage = useCallback((message) => {
     setMessages((current) => [...current, message]);
@@ -247,6 +287,8 @@ const AIExpert = () => {
         isStreaming: false,
         confidenceScore: 35,
         recommendEscalation: true,
+        failedText: cleanText,
+        isError: true,
       }));
       setEscalation({ reason: 'service_unavailable', confidenceScore: 35 });
     } finally {
@@ -276,6 +318,36 @@ const AIExpert = () => {
     if (!text) return;
     setDraft('');
     await sendMessage(text);
+  };
+
+  const startNewConversation = () => {
+    if (isStreaming || isStarting) return;
+    setConversationId('');
+    setMessages([]);
+    setProblem('');
+    setDraft('');
+    setEscalation(null);
+    setError('');
+    setCopiedMessageId('');
+    navigate('/ai-expert', { replace: true });
+  };
+
+  const copyMessage = async (message) => {
+    if (!message.content || !navigator.clipboard) return;
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopiedMessageId(message.id);
+      window.setTimeout(() => setCopiedMessageId((current) => current === message.id ? '' : current), 1600);
+    } catch {
+      setError('Copy failed. Select the response text and copy it manually.');
+    }
+  };
+
+  const retryMessage = (message) => {
+    if (!message.failedText || isStreaming) return;
+    setMessages((current) => current.filter((item) => item.id !== message.id));
+    setError('');
+    sendMessage(message.failedText);
   };
 
   const submitFeedback = async (messageId, feedback) => {
@@ -339,10 +411,16 @@ const AIExpert = () => {
           <span className="ai-brand-icon"><Bot size={18} /></span>
           <span>Solvenut AI Expert</span>
         </div>
-        <button className="ai-human-btn" onClick={bookExpert} aria-label="Book a verified human expert">
-          <UserRoundCheck size={17} />
-          Book Expert
-        </button>
+        <div className="ai-topbar-actions">
+          <button className="ai-new-btn" onClick={startNewConversation} disabled={isStreaming || isStarting}>
+            <MessageSquarePlus size={16} />
+            New consultation
+          </button>
+          <button className="ai-human-btn" onClick={bookExpert} aria-label="Book a verified human expert">
+            <UserRoundCheck size={17} />
+            Book Expert
+          </button>
+        </div>
       </header>
 
       <main className="ai-layout">
@@ -372,6 +450,14 @@ const AIExpert = () => {
             <Sparkles size={18} />
             <p>AI Expert is the first consultation layer. It can clarify your problem, build a plan, and recommend a verified human expert when the situation needs deeper judgment.</p>
           </div>
+          <div className="ai-sidebar-flow">
+            <p className="ai-sidebar-flow-title">A useful consultation</p>
+            <ol>
+              <li><span>01</span><div><strong>Frame the question</strong><small>Share the context and constraints.</small></div></li>
+              <li><span>02</span><div><strong>Explore the options</strong><small>Ask follow-ups and test assumptions.</small></div></li>
+              <li><span>03</span><div><strong>Choose your next step</strong><small>Escalate to a human expert when needed.</small></div></li>
+            </ol>
+          </div>
         </aside>
 
         <section className="ai-chat-panel">
@@ -388,7 +474,17 @@ const AIExpert = () => {
                 placeholder="Example: I have two job offers and I am unsure which one fits my long-term goals..."
                 rows={8}
                 aria-label="Describe your decision or problem"
+                maxLength={6000}
               />
+              <div className="ai-start-helper">
+                <span>{problem.length}/6000</span>
+                <span>Press Enter in the button below when you are ready.</span>
+              </div>
+              <div className="ai-prompt-row" aria-label="Suggested starting points">
+                {(STARTER_PROMPTS[selectedDomain] || STARTER_PROMPTS.career).map((prompt) => (
+                  <button type="button" key={prompt} onClick={() => setProblem(prompt)}>{prompt}</button>
+                ))}
+              </div>
               {error && <div className="ai-error">{error}</div>}
               <button className="ai-primary-btn" type="submit" disabled={isStarting || !problem.trim()}>
                 {isStarting ? <Loader2 className="ai-spin" size={18} /> : <Send size={18} />}
@@ -401,17 +497,21 @@ const AIExpert = () => {
                 <div>
                   <p>{selectedDomainInfo.label}</p>
                   <h2>AI Expert Consultation</h2>
+                  <span className="ai-live-status"><span /> Private session · context stays in your account</span>
                 </div>
-                {messages.length > 0 && (
-                  <span className="ai-memory-pill">{messages.length} messages in memory</span>
-                )}
+                <div className="ai-chat-header-actions">
+                  {messages.length > 0 && <span className="ai-memory-pill">{messages.length} messages</span>}
+                  <button className="ai-header-new-btn" onClick={startNewConversation} disabled={isStreaming} aria-label="Start a new consultation"><RotateCcw size={15} /> New</button>
+                </div>
               </div>
 
-              <div className="ai-messages">
+              <div className="ai-messages" role="log" aria-live="polite" aria-label="AI Expert messages">
+                {isLoadingConversation && <div className="ai-loading-history"><Loader2 className="ai-spin" size={17} /> Loading saved consultation…</div>}
                 {messages.map((message) => (
                   <article key={message.id} className={`ai-message ai-message--${message.role}`}>
-                    <div className="ai-avatar">{message.role === 'assistant' ? <Bot size={18} /> : 'You'}</div>
+                    <div className="ai-avatar" aria-label={message.role === 'assistant' ? 'AI Expert' : 'You'}>{message.role === 'assistant' ? <Bot size={18} /> : 'You'}</div>
                     <div className="ai-bubble">
+                      <div className="ai-message-label">{message.role === 'assistant' ? 'AI Expert' : 'You'}</div>
                       <div className="ai-message-text">
                         {message.content ? formatAssistantText(message.content) : (
                           <span className="ai-typing"><Loader2 className="ai-spin" size={16} /> Thinking like a consultant...</span>
@@ -419,19 +519,16 @@ const AIExpert = () => {
                       </div>
                       {message.role === 'assistant' && !message.isStreaming && (
                         <div className="ai-response-meta">
-                          {Number.isFinite(Number(message.confidenceScore)) && (
-                            <span>Confidence {message.confidenceScore}%</span>
-                          )}
-                          <div className="ai-feedback-row">
+                          <div className="ai-response-tools">
+                            {Number.isFinite(Number(message.confidenceScore)) && <span className="ai-confidence">Confidence <strong>{message.confidenceScore}%</strong></span>}
+                            <button className="ai-copy-btn" onClick={() => copyMessage(message)} aria-label={`Copy ${message.role === 'assistant' ? 'AI response' : 'message'}`}>
+                              {copiedMessageId === message.id ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                            </button>
+                            {message.isError && <button className="ai-retry-btn" onClick={() => retryMessage(message)}><RotateCcw size={14} /> Retry</button>}
+                          </div>
+                          <div className="ai-feedback-row" aria-label="Response feedback">
                             {FEEDBACK.map((item) => (
-                              <button
-                                key={item.id}
-                                className={message.selectedFeedback === item.id ? 'ai-feedback--active' : ''}
-                                onClick={() => submitFeedback(message.id, item.id)}
-                                disabled={message.feedbackGiven}
-                              >
-                                {item.label}
-                              </button>
+                              <button key={item.id} className={message.selectedFeedback === item.id ? 'ai-feedback--active' : ''} onClick={() => submitFeedback(message.id, item.id)} disabled={message.feedbackGiven}>{item.label}</button>
                             ))}
                           </div>
                         </div>
@@ -463,19 +560,24 @@ const AIExpert = () => {
               {error && <div className="ai-error">{error}</div>}
 
               <form className="ai-composer" onSubmit={handleSend}>
-                <textarea
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder="Ask a follow-up, add missing context, or request an action plan..."
-                  rows={2}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      handleSend(event);
-                    }
-                  }}
-                />
-                <button type="submit" disabled={isStreaming || !draft.trim()} aria-label="Send message">
+                <div className="ai-composer-field">
+                  <textarea
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    placeholder="Ask a follow-up, add missing context, or request an action plan..."
+                    rows={2}
+                    maxLength={6000}
+                    aria-label="Ask a follow-up question"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        handleSend(event);
+                      }
+                    }}
+                  />
+                  <span className="ai-composer-count">{draft.length}/6000 · Enter to send · Shift+Enter for a new line</span>
+                </div>
+                <button type="submit" disabled={isStreaming || !draft.trim()} aria-label="Send message" title="Send message">
                   {isStreaming ? <Loader2 className="ai-spin" size={20} /> : <Send size={20} />}
                 </button>
               </form>
