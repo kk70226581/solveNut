@@ -219,6 +219,40 @@ body:has(.client-chat-page) .floating-assistant-container { display: none; }
 .ex-page .ex-card { border-radius: 18px; box-shadow: 0 6px 24px #00000024; }
 .ex-page .ex-search-input { font-size: 16px; }
 
+/* Home page polish: make live data states clear and keep the landing page calm on small screens. */
+.hp .hp-main { position: relative; z-index: 1; }
+.hp .hp-hero-copy { max-width: 620px; }
+.hp .hp-hero-sub { max-width: 58ch; }
+.hp .hp-social-proof { min-height: 42px; }
+.hp .hp-live-note {
+  margin: -24px auto 8px; max-width: 760px; padding: 10px 14px; border: 1px solid rgba(251,191,36,.28);
+  border-radius: 12px; color: #fde68a; background: rgba(120, 73, 8, .16); font-size: 13px; text-align: center;
+}
+.hp .hp-experts-empty {
+  grid-column: 1 / -1; display: flex; align-items: center; gap: 16px; min-height: 150px; padding: 24px;
+  border: 1px dashed rgba(148,163,184,.28); border-radius: 18px; background: rgba(15,23,42,.42);
+}
+.hp .hp-experts-empty-icon {
+  display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; border-radius: 14px;
+  color: #a7f3d0; background: rgba(52,211,153,.14); font-size: 28px;
+}
+.hp .hp-experts-empty strong { display: block; color: var(--c-text); font-size: 15px; }
+.hp .hp-experts-empty p { margin: 5px 0 0; color: var(--c-muted); font-size: 13px; line-height: 1.5; }
+.hp .hp-experts-empty .hp-btn { margin-left: auto; flex: 0 0 auto; }
+.hp .hp-testimonial-quote { font-style: normal; }
+.hp .hp-testimonial-stars { font-variant-numeric: tabular-nums; }
+.hp .hp-floating-help-btn {
+  background: linear-gradient(135deg, #a7f3d0, #5eead4); color: #102a2a;
+  box-shadow: 0 10px 26px rgba(45, 212, 191, .28);
+}
+.hp .hp-floating-help-btn:hover { box-shadow: 0 14px 32px rgba(45, 212, 191, .38); }
+
+@media (max-width: 640px) {
+  .hp .hp-live-note { margin: -12px 16px 8px; font-size: 12px; }
+  .hp .hp-experts-empty { align-items: flex-start; flex-wrap: wrap; padding: 18px; }
+  .hp .hp-experts-empty .hp-btn { margin-left: 60px; }
+}
+
 @media (max-width: 900px) {
   .client-chat-page main > .shell { display: flex; flex-direction: column; }
   .client-chat-page .mobile-pane-switcher { display: flex !important; position: relative; top: auto; z-index: 2; flex: 0 0 auto; margin: 0 0 8px; }

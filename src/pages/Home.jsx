@@ -40,47 +40,11 @@ function useInView(threshold = 0.15) {
   return [ref, inView];
 }
 
-/* ── Static data ── */
-const TESTIMONIALS = [
-  {
-    quote: "Solvenut helped me structure a career pivot I'd been overthinking for 2 years. Within one session I had a clear 90-day plan.",
-    name: 'Priya Sharma', role: 'Product Manager → Founder', avatar: 'PS', color: '#22d3ee',
-  },
-  {
-    quote: "The expert matched my exact situation — a startup exit and what to do next. Felt like talking to someone who'd been through it.",
-    name: 'Marcus Bell', role: 'Ex-CTO, Series B startup', avatar: 'MB', color: '#34d399',
-  },
-  {
-    quote: "I was about to make a $200k investment decision. Solvenut helped me see the trade-offs I was completely blind to.",
-    name: 'Ananya R.', role: 'Angel Investor', avatar: 'AR', color: '#fbbf24',
-  },
-  {
-    quote: "Not vague motivational advice — actual frameworks, prioritized steps, and someone who challenged my assumptions.",
-    name: 'Daniel Osei', role: 'Operations Director', avatar: 'DO', color: '#a78bfa',
-  },
-  {
-    quote: "I used Solvenut before a board-level conversation. The clarity I walked in with was completely different.",
-    name: 'Sarah Kim', role: 'VP Engineering', avatar: 'SK', color: '#fb7185',
-  },
-  {
-    quote: "Best 45 minutes I've spent on a professional decision. I finally stopped going in circles.",
-    name: 'Rahul Menon', role: 'Senior Consultant', avatar: 'RM', color: '#38bdf8',
-  },
-];
-
-const DEFAULT_EXPERTS = [
-  { name: 'Dr. Elena Torres', domain: 'Career Transitions', exp: '14 yrs', sessions: 340, tag: 'Top rated', color: '#22d3ee', initial: 'ET' },
-  { name: 'James Okafor', domain: 'Financial Planning', exp: '11 yrs', sessions: 285, tag: 'Finance expert', color: '#34d399', initial: 'JO' },
-  { name: 'Neha Kapoor', domain: 'Business Strategy', exp: '9 yrs', sessions: 210, tag: 'Startup specialist', color: '#fbbf24', initial: 'NK' },
-  { name: 'Leon Fischer', domain: 'Leadership & Growth', exp: '16 yrs', sessions: 420, tag: 'Executive coach', color: '#a78bfa', initial: 'LF' },
-];
-
-const DEFAULT_ACTIVITY_FEED = [
-  { icon: '🎯', text: 'Career plan created', time: '2m ago' },
-  { icon: '💼', text: 'Expert session completed', time: '8m ago' },
-  { icon: '📈', text: 'Investment roadmap built', time: '15m ago' },
-  { icon: '✅', text: 'Decision milestone reached', time: '22m ago' },
-  { icon: '🚀', text: 'Business plan validated', time: '31m ago' },
+/* Product guidance keeps this section useful before the platform has verified customer stories. */
+const SESSION_OUTCOMES = [
+  { quote: 'A clear decision statement, with the assumptions that need testing before you commit.', name: 'Before the session', role: 'Frame the question', avatar: '01', color: '#22d3ee' },
+  { quote: 'A short list of realistic options compared against your priorities, constraints, and timeline.', name: 'During the session', role: 'Compare the trade-offs', avatar: '02', color: '#34d399' },
+  { quote: 'A written next-step plan with checkpoints, owners, and a sensible follow-up path.', name: 'After the session', role: 'Move into action', avatar: '03', color: '#fbbf24' },
 ];
 
 const Home = () => {
@@ -90,20 +54,25 @@ const Home = () => {
   const [helpbotOpen, setHelpbotOpen] = useState(false);
   const [homeData, setHomeData] = useState(null);
   const [expertCount, setExpertCount] = useState(null);
+  const [homeLoading, setHomeLoading] = useState(true);
+  const [homeError, setHomeError] = useState('');
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [headerScrolled, setHeaderScrolled] = useState(false);
   const [heroVisible, setHeroVisible] = useState(false);
   const innerRef = useRef(null);
 
-  const expertsShowcase = homeData?.experts?.length ? homeData.experts : DEFAULT_EXPERTS;
+  const expertsShowcase = Array.isArray(homeData?.experts) ? homeData.experts : [];
   const stats = homeData?.stats || {};
 
   const [statsRef, statsInView] = useInView(0.3);
-  const expertCountTarget = stats.approvedExperts ?? expertCount ?? 48;
-  const sessionsCount = useCounter(stats.sessionsCompleted ?? 1240, 2000, statsInView);
+  const expertCountTarget = stats.approvedExperts ?? expertCount;
+  const sessionsTarget = stats.sessionsCompleted;
+  const satisfactionTarget = stats.clientSatisfaction;
+  const decisionsTarget = stats.decisionsMade;
+  const sessionsCount = useCounter(sessionsTarget, 2000, statsInView);
   const expertsAnimated = useCounter(expertCountTarget, 1600, statsInView);
-  const satisfactionCount = useCounter(stats.clientSatisfaction ?? 97, 1400, statsInView);
-  const decisionsCount = useCounter(stats.decisionsMade ?? 3800, 2200, statsInView);
+  const satisfactionCount = useCounter(satisfactionTarget, 1400, statsInView);
+  const decisionsCount = useCounter(decisionsTarget, 2200, statsInView);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   const email = typeof window !== 'undefined' ? localStorage.getItem('email') : null;
@@ -132,17 +101,16 @@ const Home = () => {
     const totalRatingWeight = safeExperts.reduce((sum, e) => sum + Number(e.ratingsCount || 0), 0);
     const weightedRating = safeExperts.reduce((sum, e) => sum + (Number(e.avgRating || e.rating || 0) * Number(e.ratingsCount || 0)), 0);
     const avgRating = totalRatingWeight > 0 ? (weightedRating / totalRatingWeight) : 0;
-    const clientSatisfaction = avgRating > 0 ? Math.round((avgRating / 5) * 100) : 97;
-    const decisionsMade = sessionsCompleted + approvedExperts * 3;
+    const clientSatisfaction = avgRating > 0 ? Math.round((avgRating / 5) * 100) : null;
     const activity = [
       { icon: '🎯', text: `${approvedExperts} approved experts active`, time: 'live' },
       { icon: '💼', text: `${sessionsCompleted} rated sessions completed`, time: 'live' },
       { icon: '📈', text: `Average expert rating ${avgRating ? avgRating.toFixed(1) : 'new'}`, time: 'live' },
-      { icon: '✅', text: `${clientSatisfaction}% client satisfaction`, time: 'live' },
+      ...(clientSatisfaction == null ? [] : [{ icon: '✅', text: `${clientSatisfaction}% average rating`, time: 'live' }]),
       { icon: '🚀', text: 'New consultations starting daily', time: 'live' },
     ];
     return {
-      stats: { approvedExperts, sessionsCompleted, decisionsMade, clientSatisfaction },
+      stats: { approvedExperts, sessionsCompleted, clientSatisfaction },
       experts: showcase,
       activity,
     };
@@ -177,30 +145,41 @@ const Home = () => {
   /* Fetch real home data */
   useEffect(() => {
     let mounted = true;
-    fetch(`${API}/api/public-home-data`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (!mounted || !data) return;
+    const loadHomeData = async () => {
+      try {
+        const response = await fetch(`${API}/api/public-home-data`);
+        if (!response.ok) throw new Error(`Home data request failed (${response.status})`);
+        const data = await response.json();
+        if (!mounted) return;
         setHomeData(data);
         const n = Number(data?.stats?.approvedExperts);
         if (Number.isFinite(n) && n >= 0) setExpertCount(n);
-      })
-      .catch(() => {
-        fetch(`${API}/api/experts?status=approved`)
-          .then(r => r.ok ? r.json() : null)
-          .then(data => {
-            if (!mounted || !Array.isArray(data)) return;
-            setExpertCount(data.length);
-            setHomeData(deriveHomeDataFromExperts(data));
-          })
-          .catch(() => {});
-      });
+        setHomeError('');
+      } catch {
+        try {
+          const response = await fetch(`${API}/api/experts?status=approved`);
+          if (!response.ok) throw new Error(`Expert request failed (${response.status})`);
+          const data = await response.json();
+          if (!mounted || !Array.isArray(data)) throw new Error('Invalid expert response');
+          setExpertCount(data.length);
+          setHomeData(deriveHomeDataFromExperts(data));
+          setHomeError('');
+        } catch {
+          if (!mounted) return;
+          setHomeData({ stats: {}, experts: [] });
+          setHomeError('Live expert data is temporarily unavailable. You can still browse the expert directory.');
+        }
+      } finally {
+        if (mounted) setHomeLoading(false);
+      }
+    };
+    loadHomeData();
     return () => { mounted = false; };
   }, [deriveHomeDataFromExperts]);
 
   /* Testimonial auto-rotate */
   useEffect(() => {
-    const t = setInterval(() => setActiveTestimonial(v => (v + 1) % TESTIMONIALS.length), 4500);
+    const t = setInterval(() => setActiveTestimonial(v => (v + 1) % SESSION_OUTCOMES.length), 4500);
     return () => clearInterval(t);
   }, []);
 
@@ -237,6 +216,7 @@ const Home = () => {
                 {id === 'why-solvenut' ? 'Why Solvenut' : id.charAt(0).toUpperCase() + id.slice(1)}
               </button>
             ))}
+            <button className="hp-nav-link" onClick={() => go('/experts')}>Experts</button>
           </nav>
 
           <div className="hp-nav-actions">
@@ -292,7 +272,7 @@ const Home = () => {
       </div>
 
       {/* ══════════ MAIN ══════════ */}
-      <main className="hp-main">
+      <main className="hp-main" aria-busy={homeLoading}>
         <div className="hp-shell">
 
           {/* ── HERO ── */}
@@ -338,7 +318,7 @@ const Home = () => {
                     ))}
                   </div>
                   <div className="hp-proof-text">
-                    <strong>2,400+ professionals</strong> made better decisions this year
+                    <strong>Private workspace</strong> with clear next steps
                   </div>
                 </div>
               </div>
@@ -381,19 +361,26 @@ const Home = () => {
           </section>
 
           {/* ── STATS BAR ── */}
-          <div className="hp-stats-bar" ref={statsRef}>
+          <div className="hp-stats-bar" ref={statsRef} aria-label="Platform activity">
             {[
               { value: expertsAnimated, suffix: '+', label: 'Approved experts' },
               { value: sessionsCount, suffix: '+', label: 'Sessions completed' },
               { value: decisionsCount, suffix: '+', label: 'Decisions made' },
               { value: satisfactionCount, suffix: '%', label: 'Client satisfaction' },
-            ].map(({ value, suffix, label }) => (
+            ].map(({ value, suffix, label }, index) => {
+              const targets = [expertCountTarget, sessionsTarget, decisionsTarget, satisfactionTarget];
+              const target = targets[index];
+              const displayValue = target == null ? (homeLoading ? '…' : '—') : `${statsInView ? value : 0}${suffix}`;
+              return (
               <div key={label} className="hp-stat-block">
-                <div className="hp-stat-value">{statsInView ? value : 0}{suffix}</div>
+                <div className="hp-stat-value">{displayValue}</div>
                 <div className="hp-stat-label">{label}</div>
               </div>
-            ))}
+              );
+            })}
           </div>
+
+          {homeError && <p className="hp-live-note" role="status">{homeError}</p>}
 
           {/* ── WHY SOLVENUT ── */}
           <section className="hp-section" id="why-solvenut">
@@ -525,7 +512,7 @@ const Home = () => {
             </div>
 
             <div className="hp-experts-grid">
-              {expertsShowcase.map(({ name, domain, exp, sessions, tag, color, initial }) => (
+              {expertsShowcase.length ? expertsShowcase.map(({ name, domain, exp, sessions, tag, color, initial }) => (
                 <article key={name} className="hp-expert-card" style={{ '--exp-color': color }}>
                   <div className="hp-expert-avatar" style={{ background: color }}>{initial}</div>
                   <div className="hp-expert-tag">{tag}</div>
@@ -537,7 +524,16 @@ const Home = () => {
                   </div>
                   <div className="hp-expert-stars">{'★★★★★'}</div>
                 </article>
-              ))}
+              )) : (
+                <div className="hp-experts-empty">
+                  <div className="hp-experts-empty-icon">⌁</div>
+                  <div>
+                    <strong>{homeLoading ? 'Loading verified experts…' : 'Explore the live expert directory'}</strong>
+                    <p>{homeLoading ? 'Profiles and availability will appear here in a moment.' : 'See current profiles, specialties, availability, and session pricing.'}</p>
+                  </div>
+                  {!homeLoading && <button className="hp-btn hp-btn-outline" onClick={() => go('/experts')}>Browse experts</button>}
+                </div>
+              )}
             </div>
 
             <div className="hp-experts-cta">
@@ -548,20 +544,21 @@ const Home = () => {
             </div>
           </section>
 
-          {/* ── TESTIMONIALS ── */}
+          {/* ── SESSION OUTCOMES ── */}
           <section className="hp-section hp-testimonials-section">
             <div className="hp-section-head">
-              <div className="hp-kicker">Client stories</div>
-              <h2 className="hp-section-title">What clients say after their sessions</h2>
+              <div className="hp-kicker">A useful session</div>
+              <h2 className="hp-section-title">Turn an open question into a next step</h2>
+              <p className="hp-section-sub">The workspace keeps the conversation focused and leaves you with something you can act on.</p>
             </div>
 
             <div className="hp-testimonials-grid">
-              {TESTIMONIALS.map((t, i) => (
+              {SESSION_OUTCOMES.map((t, i) => (
                 <article key={t.name}
                   className={`hp-testimonial ${i === activeTestimonial ? 'hp-testimonial--active' : ''}`}
                   onClick={() => setActiveTestimonial(i)}>
-                  <div className="hp-testimonial-stars">★★★★★</div>
-                  <p className="hp-testimonial-quote">"{t.quote}"</p>
+                  <div className="hp-testimonial-stars" aria-hidden="true">{String(i + 1).padStart(2, '0')}</div>
+                  <p className="hp-testimonial-quote">{t.quote}</p>
                   <div className="hp-testimonial-author">
                     <div className="hp-testimonial-avatar" style={{ background: t.color }}>{t.avatar}</div>
                     <div>
@@ -574,7 +571,7 @@ const Home = () => {
             </div>
 
             <div className="hp-testimonial-dots">
-              {TESTIMONIALS.map((_, i) => (
+              {SESSION_OUTCOMES.map((_, i) => (
                 <button key={i} className={`hp-dot ${i === activeTestimonial ? 'hp-dot--active' : ''}`}
                   onClick={() => setActiveTestimonial(i)} aria-label={`Testimonial ${i + 1}`} />
               ))}
@@ -650,7 +647,7 @@ const Home = () => {
             <div className="hp-cta-content">
               <div className="hp-kicker" style={{ color: 'rgba(34,211,238,0.8)' }}>Ready when you are</div>
               <h2 className="hp-cta-title">Stop overthinking. Start deciding.</h2>
-              <p className="hp-cta-sub">Join 2,400+ professionals who made their most important decisions with Solvenut.</p>
+              <p className="hp-cta-sub">Start with a structured question, then choose the level of help that fits your situation.</p>
               <div className="hp-cta-actions">
                 <button className="hp-btn hp-btn-primary hp-btn-lg"
                   onClick={() => isLoggedIn ? go(dashboardPath) : go('/signup-client')}>

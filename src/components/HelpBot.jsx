@@ -1,6 +1,7 @@
 // src/components/HelpBot.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { HelpCircle, RotateCcw, Send, X } from "lucide-react";
+import { API } from "../utils/api";
 
 const welcomeMessage = {
   role: "assistant",
@@ -37,7 +38,6 @@ const HelpBot = ({ open, onClose }) => {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesRef = useRef(null);
-  const apiBase = import.meta.env.VITE_API_BASE || "/";
 
   useEffect(() => {
     if (messagesRef.current) {
@@ -55,7 +55,7 @@ const HelpBot = ({ open, onClose }) => {
     setInput("");
     setIsLoading(true);
 
-    const url = `${apiBase.replace(/\/+$/, "")}/api/help`;
+    const url = `${API}/api/help`;
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 12000);
 

@@ -267,11 +267,10 @@ const registerPublicRoutes = (app, deps) => {
       }
 
       const palette = ["#22d3ee", "#34d399", "#fbbf24", "#a78bfa"];
-      const [approvedExperts, paidSessions, totalMessages, avgRatingAgg, expertsRaw, recentPayments] =
+      const [approvedExperts, paidSessions, avgRatingAgg, expertsRaw, recentPayments] =
         await Promise.all([
           Expert.countDocuments({ status: "approved" }),
           Payment.countDocuments({ status: "paid", verified: true }),
-          Message.countDocuments({}),
           Rating.aggregate([{ $group: { _id: null, avgScore: { $avg: "$score" } } }]),
           Expert.find({ status: "approved" })
             .select("name field experience email")
@@ -353,8 +352,7 @@ const registerPublicRoutes = (app, deps) => {
         stats: {
           approvedExperts,
           sessionsCompleted: paidSessions,
-          decisionsMade: totalMessages,
-          clientSatisfaction: avgScore > 0 ? Math.round((avgScore / 5) * 100) : 97,
+          clientSatisfaction: avgScore > 0 ? Math.round((avgScore / 5) * 100) : null,
         },
         experts,
         activity,
