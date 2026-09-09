@@ -9,7 +9,7 @@ import {
   subscribeToIncomingCallChanges,
 } from '../utils/incomingCallStorage';
 
-const API = import.meta.env.VITE_API_BASE || 'https://solutionhub66.onrender.com';
+import { API } from '../utils/api';
 
 export default function GlobalCallNotifier() {
   const navigate = useNavigate();

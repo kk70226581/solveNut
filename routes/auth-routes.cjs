@@ -349,6 +349,22 @@ const registerAuthRoutes = (app, deps) => {
 
   app.put("/api/profile", authMiddleware, async (req, res) => {
     try {
+      if (req.user?.role === "client") {
+        const updates = {};
+        for (const [key, limit] of Object.entries({ name: 100, phone: 40, location: 160, focusArea: 500 })) {
+          if (req.body[key] === undefined) continue;
+          if (typeof req.body[key] !== "string" || req.body[key].trim().length > limit || (key === "name" && !req.body[key].trim())) {
+            return res.status(400).json({ error: `Please provide a valid ${key} (up to ${limit} characters)` });
+          }
+          updates[key] = req.body[key].trim();
+        }
+        const user = await User.findOneAndUpdate(
+          { email: String(req.user.email || "").toLowerCase(), role: "client" },
+          { $set: updates }, { new: true, runValidators: true }
+        ).select("name email phone location focusArea");
+        if (!user) return res.status(404).json({ error: "Client not found" });
+        return res.json({ success: true, user });
+      }
       if (req.user?.role !== "expert") {
         return res.status(403).json({ error: "Only experts can update this profile" });
       }

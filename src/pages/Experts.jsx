@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Link, createSearchParams, useNavigate, useSearchParams } from 'react-router-dom';
 import '../styles/Experts.css';
 
-const API = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+import { API } from '../utils/api';
 
 const FILTERS = [
   { id: 'all',         label: 'All experts',  icon: '✦' },

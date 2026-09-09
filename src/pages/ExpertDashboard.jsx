@@ -24,7 +24,7 @@ import {
   validateChatAttachmentFile,
 } from '../utils/chatAttachments';
 
-const API = import.meta.env.VITE_API_BASE || 'https://solutionhub66.onrender.com';
+import { API } from '../utils/api';
 
 const fmtInr = (n) => {
   const v = Number(n || 0);
@@ -397,6 +397,7 @@ const ExpertDashboard = () => {
   const [sessionQuery, setSessionQuery] = useState('');
   const [activeRoom, setActiveRoom] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
+  const [chatError, setChatError] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [chatImageDataUrl, setChatImageDataUrl] = useState('');
   const [chatImageName, setChatImageName] = useState('');
@@ -477,6 +478,9 @@ const ExpertDashboard = () => {
         cRes.json().catch(() => ([])),
         payRes.json().catch(() => ([])),
       ]);
+      if (!pRes.ok || !cRes.ok || !payRes.ok) {
+        throw new Error('Dashboard request failed');
+      }
       if (!pData?.error) {
         setProfile((prev) => ({
           ...prev, ...pData,
@@ -744,16 +748,19 @@ const ExpertDashboard = () => {
     setMobileSidebarOpen(false);
     setMobilePane('chat');
     setLoadingChat(true);
+    setChatError('');
     try {
       const r = await fetch(`${API}/api/messages?room=${encodeURIComponent(c.room)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await r.json().catch(() => []);
+      if (!r.ok) throw new Error('History unavailable');
       setChatMessages(Array.isArray(data) ? data : []);
       setTimeout(() => msgsEndRef.current?.scrollIntoView({ behavior: 'auto' }), 40);
       socketRef.current?.emit('join_private', c.room);
     } catch {
       setChatMessages([]);
+      setChatError('Message history could not be loaded. Reopen this conversation to retry.');
     } finally {
       setLoadingChat(false);
     }
@@ -774,6 +781,11 @@ const ExpertDashboard = () => {
   }, [incomingCall, conversations, activeRoom, openConversation]);
 
   const sendChatMessage = useCallback(() => {
+    if (!socketRef.current?.connected) {
+      setChatError('Reconnecting. Your draft is safe; send it when the connection returns.');
+      return;
+    }
+    setChatError('');
     const room = activeRoomRef.current || activeRoom;
     const txt = chatInput.trim();
     const attachmentPayload = getChatAttachmentPayload({
@@ -1140,7 +1152,7 @@ const ExpertDashboard = () => {
                       <Briefcase size={12} />{computedProfile.field || 'Expert'}
                     </div>
                     <div className="ed-hero-actions">
-                      <button className="ed-btn ed-btn-primary ed-btn-lg" onClick={() => go('/experts')}><Eye size={16} />View Profile</button>
+                      <button className="ed-btn ed-btn-primary ed-btn-lg" onClick={() => setActiveTab('chat')}><MessageSquare size={16} />Open messages</button>
                       <button className="ed-btn ed-btn-outline ed-btn-lg" onClick={() => setEditModalOpen(true)}><Edit3 size={16} />Edit Profile</button>
                     </div>
                     <div className="ed-tip-strip">
@@ -1493,7 +1505,7 @@ const ExpertDashboard = () => {
                       )}
 
                       {/* Messages */}
-                      <div className="ed-messages-area">
+                      <div className="ed-messages-area" role="log" aria-label="Conversation">
                         {loadingChat ? (
                           <div className="ed-msgs-loading">
                             <div className="ed-msgs-spinner" />
@@ -1536,6 +1548,7 @@ const ExpertDashboard = () => {
 
                       {/* Compose */}
                       <div className="ed-compose">
+                        {chatError && <p className="ed-chat-error" role="alert">{chatError}</p>}
                         <input ref={chatImageInputRef} type="file" accept={CHAT_ATTACHMENT_ACCEPT} className="ed-file-hidden" onChange={onPickChatAttachment} />
 
                         {chatImageDataUrl && (
@@ -1578,10 +1591,15 @@ const ExpertDashboard = () => {
                               className="ed-compose-input"
                               rows={1}
                               value={chatInput}
-                              onChange={(e) => handleChatInputChange(e.target.value)}
+                              onChange={(e) => {
+                                handleChatInputChange(e.target.value);
+                                e.target.style.height = 'auto';
+                                e.target.style.height = `${Math.min(e.target.scrollHeight, 140)}px`;
+                              }}
+                              aria-label="Message to client"
                               placeholder="Type a message…"
                               onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+                                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); sendChatMessage(); }
                               }}
                             />
                           </div>
@@ -1715,7 +1733,7 @@ const ExpertDashboard = () => {
                     <span style={{ color: domainColor, fontFamily: 'DM Serif Display,serif', fontSize: '1.8rem' }}>{fmtInr(computedProfile.price)}</span>
                     <span style={{ color: 'var(--ed-muted)', fontSize: '12.5px' }}> / session</span>
                   </div>
-                  <button className="ed-preview-cta" style={{ background: `linear-gradient(135deg, ${domainColor}, #06b6d4)` }}>Pay & Talk</button>
+                  <button type="button" disabled aria-label="Preview of client booking button" className="ed-preview-cta" style={{ background: `linear-gradient(135deg, ${domainColor}, #06b6d4)` }}>Pay & Talk</button>
                 </div>
 
                 <div className="ed-profile-side">

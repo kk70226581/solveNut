@@ -9,6 +9,9 @@ Full-stack app with React (Vite) frontend and Express backend.
 - `npm run start` - run frontend + backend together
 - `npm run build` - production frontend build
 - `npm run test` - basic automated API tests
+- `npm run test:ui` - responsive workspace and two-participant call regression tests
+
+See [UI review and verification](docs/UI_REVIEW.md) for the dashboard refresh, platform comparison, and browser test setup.
 
 ## Security Additions
 

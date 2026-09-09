@@ -7,6 +7,9 @@ const userSchema = new mongoose.Schema({
   email: { type: String, unique: true, lowercase: true },
   password: String,
   role: { type: String, default: "client" },
+  phone: { type: String, default: "" },
+  location: { type: String, default: "" },
+  focusArea: { type: String, default: "" },
   resetPasswordTokenHash: String,
   resetPasswordExpires: Date,
 });

@@ -12,6 +12,7 @@ import {
   Move,
 } from 'lucide-react';
 import '../styles/VideoCall.css';
+import { clampFloatingRect } from '../utils/callLayout';
 
 const TURN_URLS = String(import.meta.env.VITE_TURN_URLS || import.meta.env.VITE_TURN_URL || '')
   .split(',')
@@ -107,23 +108,6 @@ function getMediaErrorMessage(error) {
 function setMediaTrackEnabled(track, enabled) {
   if (!track) return;
   track.enabled = enabled;
-}
-
-function clampFloatingRect(rect) {
-  if (typeof window === 'undefined') return rect;
-  const margin = 8;
-  const maxWidth = Math.max(300, window.innerWidth - margin * 2);
-  const maxHeight = Math.max(220, window.innerHeight - margin * 2);
-  const width = Math.min(Math.max(rect.width, 320), maxWidth);
-  const height = Math.min(Math.max(rect.height, 260), maxHeight);
-  const maxX = window.innerWidth - width - margin;
-  const maxY = window.innerHeight - height - margin;
-  return {
-    x: Math.min(Math.max(rect.x, margin), Math.max(margin, maxX)),
-    y: Math.min(Math.max(rect.y, margin), Math.max(margin, maxY)),
-    width,
-    height,
-  };
 }
 
 async function tuneLocalStream(stream) {
@@ -255,6 +239,8 @@ export default function VideoCall({
   const panelRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
+  const [playbackBlocked, setPlaybackBlocked] = useState(false);
   const audioContextRef = useRef(null);
   const audioProcessingContextRef = useRef(null);
   const processedAudioNodesRef = useRef([]);
@@ -271,6 +257,7 @@ export default function VideoCall({
   const callStartedAtRef = useRef(null);
   const joinRoomFnRef = useRef(() => {});
   const resetCallStateRef = useRef(async () => {});
+  const callGenerationRef = useRef(0);
 
   const [callStatus, setCallStatus] = useState('idle');
   const [incomingOffer, setIncomingOffer] = useState(null);
@@ -475,6 +462,8 @@ export default function VideoCall({
     pendingCandidatesRef.current = [];
     remoteStreamRef.current = null;
     syncVideoElement(remoteVideoRef.current, null);
+    syncVideoElement(remoteAudioRef.current, null);
+    setPlaybackBlocked(false);
     setHasRemotePreview(false);
     setRemoteVideoIsPortrait(false);
     setRemoteMediaMode('camera');
@@ -548,6 +537,10 @@ export default function VideoCall({
   };
 
   const resetCallState = async ({ keepJoinedRoom = true } = {}) => {
+    callGenerationRef.current += 1;
+    setIsFloating(false);
+    setIsFullscreen(false);
+    if (document.fullscreenElement === panelRef.current) document.exitFullscreen().catch(() => {});
     clearPeerConnection();
     await stopLocalMedia();
     setIncomingOffer(null);
@@ -564,6 +557,7 @@ export default function VideoCall({
 
   const ensureLocalMedia = useCallback(async (requestedCallType = 'video') => {
     if (localStreamRef.current) return localStreamRef.current;
+    const generation = callGenerationRef.current;
 
     let stream;
     const audioOnly = normalizeCallType(requestedCallType) === 'audio';
@@ -577,6 +571,7 @@ export default function VideoCall({
       setIsCameraOff(audioOnly);
     } catch (error) {
       const canFallbackToAudio =
+        error?.name === 'NotFoundError' ||
         error?.name === 'NotReadableError' ||
         error?.name === 'TrackStartError' ||
         error?.name === 'OverconstrainedError' ||
@@ -596,6 +591,10 @@ export default function VideoCall({
     }
 
     await tuneLocalStream(stream);
+    if (generation !== callGenerationRef.current) {
+      stream.getTracks().forEach(track => track.stop());
+      throw new DOMException('Call cancelled', 'AbortError');
+    }
     localStreamRef.current = stream;
     const audioProcessingStore = {
       context: audioProcessingContextRef.current,
@@ -603,6 +602,13 @@ export default function VideoCall({
       track: outgoingAudioTrackRef.current,
     };
     const processedTrack = await createProcessedAudioTrack(stream, audioProcessingStore);
+    if (generation !== callGenerationRef.current) {
+      processedTrack?.stop();
+      audioProcessingStore.nodes?.forEach(node => node.disconnect());
+      audioProcessingStore.context?.close().catch(() => {});
+      stream.getTracks().forEach(track => track.stop());
+      throw new DOMException('Call cancelled', 'AbortError');
+    }
     audioProcessingContextRef.current = audioProcessingStore.context;
     processedAudioNodesRef.current = audioProcessingStore.nodes || [];
     setIsMuted(false);
@@ -642,7 +648,7 @@ export default function VideoCall({
     const connection = new RTCPeerConnection(RTC_CONFIG);
 
     remoteStreamRef.current = new MediaStream();
-    syncVideoElement(remoteVideoRef.current, remoteStreamRef.current);
+    syncVideoElement(remoteVideoRef.current, remoteStreamRef.current, { muted: true });
 
     stream.getVideoTracks().forEach((track) => {
       connection.addTrack(track, stream);
@@ -675,7 +681,13 @@ export default function VideoCall({
       }
 
       remoteStreamRef.current = targetStream;
-      syncVideoElement(remoteVideoRef.current, targetStream);
+      syncVideoElement(remoteVideoRef.current, targetStream, { muted: true });
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = targetStream;
+        remoteAudioRef.current.play().then(() => setPlaybackBlocked(false)).catch(error => {
+          if (error.name === 'NotAllowedError') setPlaybackBlocked(true);
+        });
+      }
       setHasRemotePreview(targetStream.getVideoTracks().length > 0);
     };
 
@@ -711,6 +723,8 @@ export default function VideoCall({
   });
 
   const startCall = async (requestedCallType = 'video') => {
+    if (isCallActive) return;
+    const generation = callGenerationRef.current;
     if (!canInitiateCall) {
       setCallError('Call service is reconnecting. Try again in a moment.');
       return;
@@ -729,6 +743,7 @@ export default function VideoCall({
       const connection = await createPeerConnection(nextCallType);
       const offer = await connection.createOffer();
       await connection.setLocalDescription(offer);
+      if (generation !== callGenerationRef.current) return;
 
       socket.emit('offer', {
         room: signalingRoomId,
@@ -737,12 +752,14 @@ export default function VideoCall({
       });
     } catch (err) {
       console.error('Failed to start call', err);
-      setCallStatus('idle');
+      if (generation !== callGenerationRef.current) return;
+      await resetCallState();
       setCallError(getMediaErrorMessage(err));
     }
   };
 
   const acceptCall = async () => {
+    const generation = callGenerationRef.current;
     if (!effectiveIncomingOffer || !socket || !signalingRoomId) return;
 
     try {
@@ -758,6 +775,7 @@ export default function VideoCall({
 
       const answer = await connection.createAnswer();
       await connection.setLocalDescription(answer);
+      if (generation !== callGenerationRef.current) return;
 
       socket.emit('answer', {
         room: signalingRoomId,
@@ -771,7 +789,8 @@ export default function VideoCall({
       onIncomingCallCleared?.();
     } catch (err) {
       console.error('Failed to accept call', err);
-      setCallStatus('idle');
+      if (generation !== callGenerationRef.current) return;
+      await resetCallState();
       setCallError(getMediaErrorMessage(err));
     }
   };
@@ -901,6 +920,7 @@ export default function VideoCall({
     joinRoomFnRef.current();
 
     const handleConnect = () => {
+      joinedRoomRef.current = '';
       joinRoomFnRef.current();
     };
 
@@ -1105,18 +1125,31 @@ export default function VideoCall({
 
     try {
       if (isFloating) setIsFloating(false);
-      if (document.fullscreenElement === panel) {
-        await document.exitFullscreen();
+      if (isFullscreen) {
+        if (document.fullscreenElement === panel) await document.exitFullscreen();
+        setIsFullscreen(false);
       } else {
         await panel.requestFullscreen();
       }
     } catch (err) {
-      console.error('Failed to toggle fullscreen', err);
-      setCallError('Fullscreen is not available here');
+      // Mobile browsers and embedded views may disallow native fullscreen.
+      // Keep the same expand control usable with a viewport-sized panel.
+      console.info('Using in-page fullscreen', err);
+      setIsFullscreen(true);
     }
   };
 
-  const toggleFloating = () => {
+  useEffect(() => {
+    const onKeyDown = event => {
+      if (event.key === 'Escape' && !document.fullscreenElement) setIsFullscreen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  const toggleFloating = async () => {
+    if (document.fullscreenElement === panelRef.current) await document.exitFullscreen();
+    setIsFullscreen(false);
     if (isFloating) {
       setIsFloating(false);
       return;
@@ -1183,10 +1216,10 @@ export default function VideoCall({
       if (dragStateRef.current.active) return;
       if (isResizingRef.current) return;
       isResizingRef.current = true;
-      const { width, height } = entry.contentRect;
+      const { width, height } = panel.getBoundingClientRect();
       setFloatingRect((prev) => {
         const next = clampFloatingRect({ ...prev, width, height });
-        return next;
+        return Object.keys(next).every((key) => Math.abs(next[key] - prev[key]) < 1) ? prev : next;
       });
       window.requestAnimationFrame(() => {
         isResizingRef.current = false;
@@ -1225,12 +1258,18 @@ export default function VideoCall({
           : undefined
       }
     >
+      <audio ref={remoteAudioRef} autoPlay />
+      {callError && !isCallActive && <p className="vc-call-error" role="alert">{callError}</p>}
+      {playbackBlocked && <button className="vc-btn vc-btn-primary" onClick={async () => {
+        try { await remoteAudioRef.current?.play(); setPlaybackBlocked(false); }
+        catch { setCallError('Tap Enable audio again to allow sound in your browser.'); }
+      }}>Enable audio</button>}
       <div className="vc-header" onPointerDown={startDragging}>
         <div>
           <div className="vc-kicker">{compact ? 'Call controls' : 'Private call'}</div>
           <h3>{compact ? peerLabel : `${callType === 'audio' ? 'Audio' : 'Video'} call with ${peerLabel}`}</h3>
         </div>
-        <div className={`vc-status ${isCallActive ? 'live' : ''}`}>
+        <div role="status" className={`vc-status ${isCallActive ? 'live' : ''}`}>
           <span>{statusLabel}</span>
           {isCallActive && !isMuted && (
             <span className="vc-audio-indicator" title="Audio noise cancellation active">
@@ -1265,6 +1304,7 @@ export default function VideoCall({
               onClick={() => startCall('audio')}
               disabled={!canInitiateCall}
               title="Start audio call"
+              aria-label="Start audio call"
             >
               <Phone size={16} />
               Audio call
@@ -1276,6 +1316,7 @@ export default function VideoCall({
               onClick={() => startCall('video')}
               disabled={!canInitiateCall}
               title="Start video call"
+              aria-label="Start video call"
             >
               <Video size={16} />
               Video call
@@ -1333,6 +1374,7 @@ export default function VideoCall({
           type="button"
           className="vc-btn vc-btn-danger"
           onClick={() => endCall(true)}
+          aria-label="End call"
         >
           <PhoneOff size={16} />
           End
@@ -1349,11 +1391,10 @@ export default function VideoCall({
         </div>
       ) : null}
 
-      {showVideoStage ? (
-        <div className={`vc-grid ${isCallActive ? 'vc-grid-live' : ''}`}>
+      <div hidden={!showVideoStage} className={`vc-grid ${isCallActive ? 'vc-grid-live' : ''}`}>
           <div className="vc-video-card vc-video-card-remote">
             <div className="vc-video-label">{peerLabel}</div>
-            <video ref={remoteVideoRef} autoPlay playsInline className={`vc-video vc-${remoteMediaMode} ${remoteVideoIsPortrait ? 'vc-video-portrait' : ''}`} />
+            <video ref={remoteVideoRef} autoPlay muted playsInline className={`vc-video vc-${remoteMediaMode} ${remoteVideoIsPortrait ? 'vc-video-portrait' : ''}`} />
             {!hasRemotePreview ? (
               <div className="vc-video-empty">
                 {callType === 'audio'
@@ -1366,17 +1407,13 @@ export default function VideoCall({
           <div className="vc-video-card vc-video-card-local">
             <div className="vc-video-label">You</div>
             <video ref={localVideoRef} autoPlay muted playsInline className={`vc-video vc-${localMediaMode} ${localVideoIsPortrait ? 'vc-video-portrait' : ''}`} />
-            {!hasLocalPreview ? (
+            {(!hasLocalPreview || isCameraOff) ? (
               <div className="vc-video-empty">{isAudioOnly ? 'Audio only' : 'Camera preview'}</div>
             ) : null}
           </div>
         </div>
-      ) : null}
-
       <div className="vc-footer">
-        <span>Audio cleanup: echo cancellation, noise suppression, auto gain</span>
-        <span>STUN: Google public server</span>
-        <span>{enabled ? 'Payment verified for room' : 'Call locked until access is verified'}</span>
+        <span>{enabled ? 'Your private session' : 'Book a session to unlock calls'}</span>
         <span>{currentUserName || currentUserEmail}</span>
       </div>
     </section>

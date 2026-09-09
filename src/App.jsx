@@ -9,6 +9,7 @@ import AdminLogin from './pages/AdminLogin';
 import AIExpert from './pages/AIExpert';
 import ClientChat from './pages/ClientChat';
 import ClientDashboard from './pages/ClientDashboard';
+import ClientSettings from './pages/ClientSettings';
 import ExpertDashboard from './pages/ExpertDashboard';
 import Login from './pages/Login';
 import SignupClient from './pages/SignupClient';
@@ -60,6 +61,7 @@ function App() {
         {/* client side */}
         <Route element={<ProtectedRoute allowedRoles={['client']} redirectTo="/login" />}>
           <Route path="/client-dashboard" element={<ClientDashboard />} />
+          <Route path="/settings" element={<ClientSettings />} />
           <Route path="/chat" element={<ClientChat />} />
         </Route>
 

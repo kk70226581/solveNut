@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/AdminDashboard.css';
 
-const API = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+import { API } from '../utils/api';
 
 const toAssetUrl = (p) => {
   if (!p) return '';

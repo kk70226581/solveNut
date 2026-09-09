@@ -10,8 +10,9 @@ import {
 } from 'lucide-react';
 import '../styles/ClientDashboard.css';
 import ChatBot from '../components/ChatBot';
+import { dashboardKey, readDecisions } from '../utils/dashboardStorage';
 
-const API = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+import { API } from '../utils/api';
 
 /* ── ChatBot styles injection ── */
 const ChatBotStyles = `
@@ -90,11 +91,11 @@ const PRIORITY_META = {
 };
 
 const ACTIVITY_ITEMS = [
-  { icon: '🎯', text: 'Decision framed: Job switch analysis', time: '2h ago', color: '#22d3ee' },
-  { icon: '💬', text: 'AI assistant session completed', time: '5h ago', color: '#34d399' },
-  { icon: '📋', text: 'Action plan updated', time: '1d ago', color: '#fbbf24' },
-  { icon: '🤝', text: 'Expert session booked', time: '2d ago', color: '#a78bfa' },
-  { icon: '✅', text: 'Milestone: Compensation research done', time: '3d ago', color: '#34d399' },
+  { icon: '01', text: 'Capture a decision on your board', time: 'Plan your next step', color: '#22d3ee' },
+  { icon: '02', text: 'Explore your options with AI', time: 'Build clarity', color: '#34d399' },
+  { icon: '03', text: 'Prepare the questions that matter', time: 'Make your session count', color: '#fbbf24' },
+  { icon: '04', text: 'Find an expert in your field', time: 'Get a human perspective', color: '#a78bfa' },
+  { icon: '05', text: 'Turn advice into your next action', time: 'Move forward', color: '#34d399' },
 ];
 
 const TIPS = [
@@ -331,13 +332,13 @@ const ClientDashboard = () => {
   const isLoggedIn = Boolean(token && email);
 
   /* ── User data ── */
-  const [userData] = useState({
+  const [userData, setUserData] = useState({
     username: name || 'Client',
     email: email || 'you@example.com',
-    phone: '+91-98765-43210',
-    location: 'Lucknow, Uttar Pradesh',
-    focusArea: 'Career and Side Projects',
-    reqCount: parseInt(localStorage.getItem('reqCount') || '0', 10) || 0,
+    phone: '',
+    location: '',
+    focusArea: '',
+    reqCount: 0,
   });
 
   /* ── UI state ── */
@@ -348,6 +349,34 @@ const ClientDashboard = () => {
   const [tipIndex, setTipIndex] = useState(0);
   const [activityIndex, setActivityIndex] = useState(0);
   const [expertNetwork, setExpertNetwork] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [dashboardError, setDashboardError] = useState('');
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const headers = { Authorization: `Bearer ${token}` };
+    const get = async (path) => {
+      const response = await fetch(`${API}${path}`, { headers, signal: controller.signal });
+      if (!response.ok) throw new Error('We could not load your account. Please retry.');
+      return response.json();
+    };
+    Promise.all([
+      get(`/api/profile?email=${encodeURIComponent(email)}`),
+      get(`/api/conversations?email=${encodeURIComponent(email)}`),
+      get('/api/my-payments'),
+    ]).then(([profile, chats, payments]) => {
+      setUserData(prev => ({ ...prev, ...profile, username: profile.name || prev.username,
+        reqCount: Array.isArray(payments) ? payments.filter(p => p.status === 'paid').length : 0 }));
+      setConversations(Array.isArray(chats) ? chats : []);
+      setDashboardError('');
+      setDashboardLoading(false);
+    }).catch(error => {
+      if (error.name !== 'AbortError') { setDashboardError(error.message); setDashboardLoading(false); }
+    });
+    return () => controller.abort();
+  }, [email, token, reload]);
 
   useEffect(() => {
     let isMounted = true;
@@ -359,38 +388,30 @@ const ClientDashboard = () => {
   }, []);
 
   /* ── Decision board state ── */
-  const [decisions, setDecisions] = useState([
-    {
-      id: 1,
-      title: 'Should I switch jobs this quarter?',
-      status: 'In review',
-      eta: 'This week',
-      category: 'Career',
-      priority: 'High',
-      summary: 'Comparing current role stability against a higher-growth offer and long-term learning.',
-      nextStep: 'Ask the AI chatbot to compare salary, role scope, risk, and learning upside.',
-    },
-    {
-      id: 2,
-      title: 'Side project monetization plan',
-      status: 'Planning',
-      eta: 'Next 14 days',
-      category: 'Business',
-      priority: 'Medium',
-      summary: 'Need to choose between subscription, one-time pricing, or marketplace-style revenue.',
-      nextStep: 'Ask the AI chatbot to pressure-test one pricing model before building more features.',
-    },
-    {
-      id: 3,
-      title: 'Compensation negotiation strategy',
-      status: 'Ready',
-      eta: 'Actionable now',
-      category: 'Finance',
-      priority: 'High',
-      summary: 'Preparing a negotiation script backed by market data and project impact.',
-      nextStep: 'Run final script review and decide the opening number.',
-    },
-  ]);
+  const [decisions, setDecisions] = useState(() => readDecisions(localStorage, email));
+  const [storageError, setStorageError] = useState('');
+  const [checklist, setChecklist] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(dashboardKey(email, 'checklist')) || '[]');
+      return Array.from({ length: 4 }, (_, index) => saved?.[index] === true);
+    } catch { return [false, false, false, false]; }
+  });
+  const completedSteps = checklist.filter(Boolean).length;
+  const toggleChecklist = index => {
+    const next = checklist.map((done, i) => i === index ? !done : done);
+    setChecklist(next);
+    try { localStorage.setItem(dashboardKey(email, 'checklist'), JSON.stringify(next)); }
+    catch { setStorageError('Your browser could not save your checklist.'); }
+  };
+  const commitDecisions = useCallback((next) => {
+    setDecisions(next);
+    try {
+      localStorage.setItem(dashboardKey(email, 'decisions'), JSON.stringify(next));
+      setStorageError('');
+    } catch {
+      setStorageError('Your browser could not save this board. Keep this page open to preserve your changes.');
+    }
+  }, [email]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
   const [boardFilter, setBoardFilter] = useState('all');
@@ -398,21 +419,21 @@ const ClientDashboard = () => {
   /* ── Stats ── */
   const [statsRef, statsInView] = useInView(0.3);
   const totalSessions   = userData.reqCount;
-  const profileStrength = Math.min(95, 55 + totalSessions * 8);
-  const sessionsCount   = useCounter(totalSessions || 3, 1200, statsInView);
+  const profileStrength = Math.round([userData.username, userData.phone, userData.location, userData.focusArea].filter(Boolean).length / 4 * 100);
+  const sessionsCount   = useCounter(totalSessions, 1200, statsInView);
   const profilePct      = useCounter(profileStrength, 1600, statsInView);
   const decisionsCount  = useCounter(decisions.length, 1000, statsInView);
   const availableExpertCount = expertNetwork.length;
   const startingSessionPrice = useMemo(() => {
     const prices = expertNetwork.map((expert) => Number(expert.price)).filter((price) => Number.isFinite(price) && price > 0);
-    return prices.length ? Math.min(...prices) : 500;
+    return prices.length ? Math.min(...prices) : null;
   }, [expertNetwork]);
   const availableSoonCount = useMemo(
     () => expertNetwork.filter((expert) => /today|within \d+ hours/i.test(expert.availability || '')).length,
     [expertNetwork]
   );
 
-  const memberSince = useMemo(() => '2025', []);
+  const memberSince = userData.createdAt ? new Date(userData.createdAt).getFullYear() : 'Not available';
   const usernameInitial = (userData.username?.trim()?.charAt(0) || 'C').toUpperCase();
 
   /* ── Scroll / entrance ── */
@@ -453,21 +474,19 @@ const ClientDashboard = () => {
   }, [decisions]);
 
   const handleSaveDecision = useCallback((card) => {
-    setDecisions(prev => {
-      const exists = prev.find(d => d.id === card.id);
-      return exists ? prev.map(d => d.id === card.id ? card : d) : [...prev, card];
-    });
+    const exists = decisions.find(d => d.id === card.id);
+    commitDecisions(exists ? decisions.map(d => d.id === card.id ? card : d) : [...decisions, card]);
     setModalOpen(false);
     setEditingCard(null);
-  }, []);
+  }, [decisions, commitDecisions]);
 
   const handleDeleteDecision = useCallback((id) => {
-    setDecisions(prev => prev.filter(d => d.id !== id));
-  }, []);
+    commitDecisions(decisions.filter(d => d.id !== id));
+  }, [decisions, commitDecisions]);
 
   const handleStatusChange = useCallback((id, status) => {
-    setDecisions(prev => prev.map(d => d.id === id ? { ...d, status } : d));
-  }, []);
+    commitDecisions(decisions.map(d => d.id === id ? { ...d, status } : d));
+  }, [decisions, commitDecisions]);
 
   /* ── Helpers ── */
   const go = useCallback((path) => navigate(path), [navigate]);
@@ -510,13 +529,13 @@ const ClientDashboard = () => {
           <div className="cd-header-right">
             {/* Notification bell */}
             <div className="cd-notif-wrap">
-              <button className="cd-notif-btn" onClick={() => setNotifOpen(v => !v)} aria-label="Notifications">
+              <button className="cd-notif-btn" onClick={() => setNotifOpen(v => !v)} aria-label="Getting started tips">
                 <Bell size={16} />
-                <span className="cd-notif-dot" />
+
               </button>
               {notifOpen && (
                 <div className="cd-notif-panel">
-                  <div className="cd-notif-head">Notifications</div>
+                  <div className="cd-notif-head">Getting started</div>
                   {ACTIVITY_ITEMS.slice(0, 3).map((item, i) => (
                     <div key={i} className="cd-notif-item">
                       <span className="cd-notif-icon">{item.icon}</span>
@@ -557,7 +576,7 @@ const ClientDashboard = () => {
                   <span className="cd-hero-gradient"> {userData.username}</span>
                 </h1>
                 <p className="cd-hero-sub">
-                  Solvenut helps you access experienced professionals across different domains when they have time to share what they know. Start with AI for clarity, then book the right human expert for practical guidance at a transparent per-session price.
+                  A little clarity goes a long way. Organize your next decision, talk it through with AI, or find an expert who has been there.
                 </p>
 
                 <div className="cd-hero-tags">
@@ -603,7 +622,7 @@ const ClientDashboard = () => {
                   <div className="cd-profile-avatar">{usernameInitial}</div>
                   <div className="cd-profile-info">
                     <h2 className="cd-profile-name">{userData.username}</h2>
-                    <div className="cd-profile-role">Client · Member since {memberSince}</div>
+                    <div className="cd-profile-role">Your personal workspace</div>
                   </div>
                   <button className="cd-profile-settings" onClick={() => go('/settings')} aria-label="Settings">
                     <Settings size={15} />
@@ -614,7 +633,7 @@ const ClientDashboard = () => {
                   {[
                     { icon: <BarChart3 size={16} />, value: sessionsCount, label: 'Sessions', color: '#22d3ee' },
                     { icon: <Target size={16} />, value: decisionsCount, label: 'Decisions', color: '#34d399' },
-                    { icon: <TrendingUp size={16} />, value: `${profilePct}%`, label: 'Readiness', color: '#fbbf24', noAnim: true },
+                    { icon: <TrendingUp size={16} />, value: `${profilePct}%`, label: 'Profile', color: '#fbbf24', noAnim: true },
                   ].map(({ icon, value, label, color }) => (
                     <div key={label} className="cd-profile-stat" style={{ '--stat-color': color }}>
                       <div className="cd-profile-stat-icon">{icon}</div>
@@ -627,7 +646,7 @@ const ClientDashboard = () => {
                 {/* Progress bar */}
                 <div className="cd-progress-section">
                   <div className="cd-progress-header">
-                    <span>Decision readiness</span>
+                    <span>Profile completeness</span>
                     <span className="cd-progress-pct">{statsInView ? profilePct : 0}%</span>
                   </div>
                   <div className="cd-progress-track">
@@ -652,11 +671,25 @@ const ClientDashboard = () => {
                   <div className="cd-focus-label">Primary focus</div>
                   <div className="cd-focus-value">
                     <Briefcase size={13} />
-                    {userData.focusArea}
+                    {userData.focusArea || 'Add your focus in Settings'}
                   </div>
                 </div>
               </div>
             </div>
+          </section>
+
+          <section className="cd-section cd-conversations" aria-label="Your conversations">
+            <div className="cd-card-head"><div><div className="cd-section-eyebrow">PICK UP WHERE YOU LEFT OFF</div><h2 className="cd-section-title">Your conversations</h2></div>
+              <button className="cd-btn cd-btn-outline" onClick={() => go('/experts')}>Find an expert <ArrowRight size={16} /></button></div>
+            {dashboardError ? <p role="alert">{dashboardError} <button className="cd-btn cd-btn-ghost" onClick={() => { setDashboardLoading(true); setReload(n => n + 1); }}>Retry</button></p>
+              : dashboardLoading ? <p role="status">Loading your conversations…</p>
+              : conversations.length ? <div className="cd-conversation-grid">{conversations.slice(0, 4).map(chat => {
+                const peer = chat.otherEmail || chat.expertEmail || String(chat.room || '').split('_').find(value => value.toLowerCase() !== email?.toLowerCase());
+                return <button className="cd-conversation" key={chat.room} onClick={() => go(`/chat?email=${encodeURIComponent(peer)}`)}>
+                  <span className="cd-conversation-avatar">{(chat.otherName || chat.expertName || peer || 'E')[0].toUpperCase()}</span>
+                  <span><strong>{chat.otherName || chat.expertName || peer}</strong><small>{chat.lastMessage || 'Continue your conversation'}</small></span><ArrowRight size={18} />
+                </button>;
+              })}</div> : <div className="cd-conversation-empty"><MessageCircle size={24} /><div><strong>Your next breakthrough starts with a conversation.</strong><p>Book an expert session and your messages will appear here.</p></div></div>}
           </section>
 
           {/* ── STATS BAR ── */}
@@ -676,32 +709,12 @@ const ClientDashboard = () => {
           </div>
 
           {/* ── QUICK ACTIONS ── */}
-          <section className="cd-access-panel" aria-label="How Solvenut works">
-            <div className="cd-access-panel-copy">
-              <div className="cd-kicker">The Solvenut difference</div>
-              <h2>Expert knowledge should be easier to access.</h2>
-              <p>Many skilled people have deep real-world experience but do not run a traditional consulting business. Solvenut gives them a flexible way to share that knowledge when they are available, helping clients find practical guidance without the usual consulting overhead.</p>
-            </div>
-            <div className="cd-access-points">
-              <div className="cd-access-point">
-                <WalletCards size={18} />
-                <div><strong>Pay only for the help you need</strong><span>Transparent per-session pricing before you book.</span></div>
-              </div>
-              <div className="cd-access-point">
-                <Clock3 size={18} />
-                <div><strong>Built around real availability</strong><span>Choose experts who are free to focus on your question.</span></div>
-              </div>
-              <div className="cd-access-point">
-                <BrainCircuit size={18} />
-                <div><strong>AI first, human when it matters</strong><span>Get a fast starting point, then escalate with context.</span></div>
-              </div>
-            </div>
-          </section>
+
 
           <section className="cd-section">
             <div className="cd-section-head">
               <div className="cd-kicker">Quick actions</div>
-              <h2 className="cd-section-title">Move from confusion to execution</h2>
+              <h2 className="cd-section-title">What would you like to do?</h2>
               <p className="cd-section-sub">Use Solvenut the same way every time: define the decision, get fast clarity, then involve the right expert only when it adds real value.</p>
             </div>
             <div className="cd-quick-grid">
@@ -747,8 +760,8 @@ const ClientDashboard = () => {
           <section className="cd-section" id="cd-board-section">
             <div className="cd-section-head">
               <div className="cd-kicker">Decision board</div>
-              <h2 className="cd-section-title">Everything you're working through</h2>
-              <p className="cd-section-sub">Experts see your board before sessions — keep it current for better guidance.</p>
+              <h2 className="cd-section-title">Your decision board</h2>
+              <p className="cd-section-sub">Saved on this device. Share relevant notes with your expert in chat.</p>
             </div>
 
             <div className="cd-board-summary">
@@ -795,10 +808,11 @@ const ClientDashboard = () => {
               </button>
             </div>
 
+            {storageError && <p role="alert">{storageError}</p>}
             {filteredDecisions.length === 0 ? (
               <div className="cd-board-empty">
                 <div className="cd-board-empty-icon">📋</div>
-                <p>No decisions in this category yet.</p>
+                <p>Make room for your next decision. Add a question, compare your options, and track your next step.</p>
                 <button className="cd-btn cd-btn-outline" onClick={() => setBoardFilter('all')}>Show all</button>
               </div>
             ) : (
@@ -828,8 +842,8 @@ const ClientDashboard = () => {
               {/* Recent activity */}
               <div className="cd-card">
                 <div className="cd-card-head">
-                  <h3 className="cd-card-title">Recent activity</h3>
-                  <span className="cd-live-pill"><span className="cd-live-dot" />Live</span>
+                  <h3 className="cd-card-title">Ways to get started</h3>
+                  <span className="cd-live-pill">Your workspace</span>
                 </div>
                 <div className="cd-activity-list">
                   {ACTIVITY_ITEMS.map((item, i) => (
@@ -854,22 +868,22 @@ const ClientDashboard = () => {
                 </div>
                 <div className="cd-checklist">
                   {[
-                    { text: 'Define one clear decision outcome', done: true },
-                    { text: 'Add your current constraints', done: true },
-                    { text: 'List your top 2 options', done: false },
-                    { text: 'Share timeline and urgency', done: false },
-                  ].map(({ text, done }) => (
-                    <div key={text} className={`cd-checklist-item ${done ? 'cd-checklist-item--done' : ''}`}>
+                    { text: 'Define one clear decision outcome' },
+                    { text: 'Add your current constraints' },
+                    { text: 'List your top 2 options' },
+                    { text: 'Share timeline and urgency' },
+                  ].map(({ text }, index) => (
+                    <button type="button" aria-pressed={checklist[index]} onClick={() => toggleChecklist(index)} key={text} className={`cd-checklist-item ${checklist[index] ? 'cd-checklist-item--done' : ''}`}>
                       <CheckCircle2 size={16} />
                       <span>{text}</span>
-                    </div>
+                    </button>
                   ))}
                 </div>
                 <div className="cd-checklist-progress">
                   <div className="cd-checklist-bar">
-                    <div className="cd-checklist-fill" style={{ width: '50%' }} />
+                    <div className="cd-checklist-fill" style={{ width: `${completedSteps * 25}%` }} />
                   </div>
-                  <span className="cd-checklist-pct">2 / 4 complete</span>
+                  <span className="cd-checklist-pct">{completedSteps} / 4 complete</span>
                 </div>
                 <button className="cd-btn cd-btn-primary cd-btn-full" onClick={() => go('/experts')}>
                   <Rocket size={14} />
@@ -884,7 +898,7 @@ const ClientDashboard = () => {
             <div className="cd-section-head">
               <div className="cd-kicker">Profile</div>
               <h2 className="cd-section-title">Your context card for faster sessions</h2>
-              <p className="cd-section-sub">Experts review this before sessions — keep it accurate for better guidance.</p>
+              <p className="cd-section-sub">Keep your details current and share relevant context in your next conversation.</p>
             </div>
             <div className="cd-profile-grid">
               <div className="cd-card">
@@ -906,7 +920,7 @@ const ClientDashboard = () => {
                       <div className="cd-profile-row-icon">{icon}</div>
                       <div className="cd-profile-row-content">
                         <span className="cd-profile-row-label">{label}</span>
-                        <span className="cd-profile-row-value">{value}</span>
+                        <span className="cd-profile-row-value">{value || 'Not set'}</span>
                       </div>
                     </div>
                   ))}
@@ -915,10 +929,10 @@ const ClientDashboard = () => {
 
               <div className="cd-card">
                 <div className="cd-card-head">
-                  <h3 className="cd-card-title">What experts know about you</h3>
+                  <h3 className="cd-card-title">Your conversation goals</h3>
                 </div>
                 <div className="cd-context-chips">
-                  {['Career growth focus', 'Open to relocation', 'Tech industry', 'Early-stage side project', 'Mid-career professional', 'Risk-moderate'].map(chip => (
+                  {(userData.focusArea ? [userData.focusArea] : ['Add your goals in Settings']).map(chip => (
                     <span key={chip} className="cd-context-chip">{chip}</span>
                   ))}
                 </div>
@@ -931,29 +945,7 @@ const ClientDashboard = () => {
           </section>
 
           {/* ── CTA BANNER ── */}
-          <section className="cd-cta-banner">
-            <div className="cd-cta-glow" aria-hidden />
-            <div className="cd-cta-content">
-              <div className="cd-kicker" style={{ color: 'rgba(34,211,238,.8)' }}>Ready to move forward</div>
-              <h2 className="cd-cta-title">Turn one open question into one clear next move.</h2>
-              <p className="cd-cta-sub">Use AI to frame the issue, then bring in a vetted expert when you need judgment, accountability, or domain experience.</p>
-              <div className="cd-cta-actions">
-                <button className="cd-btn cd-btn-primary cd-btn-lg" onClick={() => go('/experts')}>
-                  <Rocket size={16} />
-                  Browse experts
-                </button>
-                <button className="cd-btn cd-btn-outline cd-btn-lg" onClick={() => setChatOpen(true)}>
-                  <Sparkles size={16} />
-                  Try AI first
-                </button>
-              </div>
-              <div className="cd-cta-trust">
-                <span>✓ Vetted experts only</span>
-                <span>✓ Private sessions</span>
-                <span>✓ Actionable output</span>
-              </div>
-            </div>
-          </section>
+
 
         </div>{/* /shell */}
       </main>

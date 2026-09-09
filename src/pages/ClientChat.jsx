@@ -36,7 +36,7 @@ import {
   validateChatAttachmentFile,
 } from '../utils/chatAttachments';
 
-const API = import.meta.env.VITE_API_BASE || 'https://solutionhub66.onrender.com';
+import { API } from '../utils/api';
 
 const ClientChat = () => {
   const navigate = useNavigate();
@@ -539,6 +539,10 @@ const ClientChat = () => {
 
   const handleSend = () => {
     if (!socketInstance || !roomId) return;
+    if (!socketInstance.connected) {
+      showToast('Reconnecting. Your draft is safe; send it when the connection returns.', true);
+      return;
+    }
     if (!chatAccess.allowed) {
       showToast(
         chatAccess.reason === 'window_expired'
@@ -611,7 +615,7 @@ const ClientChat = () => {
   };
 
   const handleKeyPress = e => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -712,7 +716,7 @@ const ClientChat = () => {
   return (
     <div className="client-chat-page">
       {toast.visible && (
-        <div className={`toast ${toast.error ? 'error' : ''}`}>
+        <div role="status" className={`toast ${toast.error ? 'error' : ''}`}>
           {toast.text}
         </div>
       )}
@@ -935,7 +939,7 @@ const ClientChat = () => {
                     </div>
                   </div>
                 </div>
-                <div className="chat-messages" ref={chatMessagesRef}>
+                <div className="chat-messages" role="log" aria-label="Conversation" ref={chatMessagesRef}>
                   {loadingMessages ? (
                     <div className="loading-messages">
                       <LoaderCircle className="cc-spin" size={18} aria-hidden="true" />
@@ -1056,6 +1060,7 @@ const ClientChat = () => {
                     <textarea
                       ref={chatComposerRef}
                       rows={1}
+                      aria-label="Message to expert"
                       placeholder="Type your message..."
                       value={inputValue}
                       onChange={e => setInputValue(e.target.value)}

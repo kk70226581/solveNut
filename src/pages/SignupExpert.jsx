@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import '../styles/SignupExpert.css';
 
-const API = import.meta.env.VITE_API_BASE || 'https://solutionhub66.onrender.com';
+import { API } from '../utils/api';
 
 const applicationSteps = [
   { icon: UserRound, label: 'About you', text: 'Identity and account details' },

@@ -3352,7 +3352,7 @@ video {
   backdrop-filter: blur(16px);
 }
 
-.client-chat-page .chat-call-launcher.is-open .vc-panel {
+.client-chat-page .chat-call-launcher.is-open .vc-panel:not(.vc-panel-floating):not(.vc-panel-fullscreen) {
   width: min(960px, 100%) !important;
   height: min(760px, calc(100dvh - 48px)) !important;
   min-height: 420px !important;
@@ -3382,7 +3382,7 @@ video {
 @media (max-width: 720px) {
   .client-chat-page .chat-thread-badge { display: none; }
   .client-chat-page .chat-call-launcher.is-open { padding: 0; }
-  .client-chat-page .chat-call-launcher.is-open .vc-panel {
+  .client-chat-page .chat-call-launcher.is-open .vc-panel:not(.vc-panel-floating):not(.vc-panel-fullscreen) {
     width: 100% !important; height: 100dvh !important; max-height: 100dvh;
     min-height: 100dvh !important; border: 0 !important; border-radius: 0; padding: 14px !important;
   }
@@ -3481,7 +3481,7 @@ video {
   .client-chat-page .chat-call-launcher:not(.is-open) .vc-btn {
     width: 36px; min-width: 36px; height: 36px; min-height: 36px; border-radius: 50%;
   }
-  .client-chat-page .chat-call-launcher.is-open .vc-panel {
+  .client-chat-page .chat-call-launcher.is-open .vc-panel:not(.vc-panel-floating):not(.vc-panel-fullscreen) {
     gap: 10px !important;
     padding: max(12px, env(safe-area-inset-top,0px)) 12px max(12px, env(safe-area-inset-bottom,0px)) !important;
   }

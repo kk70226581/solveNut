@@ -19,12 +19,6 @@ const FloatingAssistant = () => {
     setIsOpen(false);
   };
 
-  const handleCloseAll = () => {
-    setShowHelpBot(false);
-    setShowPsychology(false);
-    setIsOpen(false);
-  };
-
   return (
     <>
       {/* Floating Action Button */}

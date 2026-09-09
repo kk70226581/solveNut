@@ -5,7 +5,7 @@ import '../styles/Home.css';
 import '../styles/HelpBot.css';
 import HelpBot from '../components/HelpBot';
 
-const API = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+import { API } from '../utils/api';
 
 /* ── Animated counter hook ── */
 function useCounter(target, duration = 1800, start = false) {

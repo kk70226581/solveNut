@@ -9,7 +9,7 @@ import {
 } from '../utils/googleAuth';
 
 // ✅ Base API root from Vite env (e.g. VITE_API_BASE=https://solutionhub66.onrender.com)
-const API = import.meta.env.VITE_API_BASE || 'https://solutionhub66.onrender.com';
+import { API } from '../utils/api';
 
 const SignupClient = () => {
   const navigate = useNavigate();

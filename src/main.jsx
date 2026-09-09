@@ -5,6 +5,7 @@ import './index.css';
 import './App.css';
 import App from './App';
 import './styles/ui-polish.css';
+import './styles/workspace.css';
 
 // OPTIONAL: one global reset/theme file only
 // import './styles/global.css';

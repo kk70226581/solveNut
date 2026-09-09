@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
 import '../styles/AdminLogin.css';
 
-const API = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+import { API } from '../utils/api';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const AdminLogin = () => {

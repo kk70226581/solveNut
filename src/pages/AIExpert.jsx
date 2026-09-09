@@ -3,7 +3,7 @@ import { ArrowLeft, Bot, BriefcaseBusiness, CheckCircle2, GraduationCap, HeartPu
 import { useNavigate } from 'react-router-dom';
 import '../styles/AIExpert.css';
 
-const API = import.meta.env.VITE_API_BASE || 'http://localhost:3000';
+import { API } from '../utils/api';
 
 const DOMAINS = [
   { id: 'career', label: 'Career', icon: BriefcaseBusiness },
